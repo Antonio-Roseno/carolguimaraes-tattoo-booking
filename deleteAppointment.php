@@ -1,35 +1,34 @@
 <?php
-$servername = "localhost";
-$username = "root"; // Usuário padrão do XAMPP
-$password = ""; // Senha padrão do XAMPP é vazia
-$dbname = "tatuagem";
+// deleteAppointment.php
+header('Content-Type: application/json');
 
-// Conexão ao banco de dados
-$conn = new mysqli($servername, $username, $password, $dbname);
+require 'db_connect.php';
 
-// Verifique a conexão
-if ($conn->connect_error) {
-    die("Conexão falhou: " . $conn->connect_error);
-}
+// Verificar se o ID foi enviado via POST
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id'])) {
+    $id = intval($_POST['id']); // Sanitiza o ID para inteiro
 
-// Verifique se o ID foi enviado
-if (isset($_POST['id'])) {
-    $id = $_POST['id'];
+    // Preparar a declaração para evitar injeção de SQL
+    $stmt = $conn->prepare("DELETE FROM appointments WHERE id = ?");
+    if ($stmt) {
+        $stmt->bind_param("i", $id);
 
-    // Prepare a instrução SQL para deletar o agendamento
-    $sql = "DELETE FROM appointments WHERE id = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $id);
+        if ($stmt->execute()) {
+            if ($stmt->affected_rows > 0) {
+                echo json_encode(['success' => true, 'message' => 'Agendamento excluído com sucesso.']);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Nenhum agendamento encontrado com o ID fornecido.']);
+            }
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Erro ao executar a consulta: ' . $stmt->error]);
+        }
 
-    if ($stmt->execute()) {
-        echo json_encode(['success' => true, 'message' => 'Agendamento excluído com sucesso']);
+        $stmt->close();
     } else {
-        echo json_encode(['success' => false, 'message' => 'Falha ao excluir agendamento']);
+        echo json_encode(['success' => false, 'message' => 'Erro ao preparar a consulta: ' . $conn->error]);
     }
-
-    $stmt->close();
 } else {
-    echo json_encode(['success' => false, 'message' => 'ID não fornecido']);
+    echo json_encode(['success' => false, 'message' => 'ID não fornecido ou método de requisição inválido.']);
 }
 
 $conn->close();
