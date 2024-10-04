@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <style>
+     
         :root {
             --primary-color: #8e44ad;
             --secondary-color: #9b59b6;
@@ -227,6 +228,7 @@
             }
         }
     </style>
+   
 </head>
 <body>
     <div class="container">
@@ -256,86 +258,157 @@
         </section>
     </div>
 
-    <div id="detailsModal" class="modal" style="display:none;">
+    <div id="detailsModal" class="modal">
         <div class="modal-content">
-            <span class="close" style="float:right; cursor:pointer;">&times;</span>
-            <h2>Detalhes do Agendamento</h2>
+            <span class="close">&times;</span>
+            <h2><i class="fas fa-info-circle"></i> Detalhes do Agendamento</h2>
             <div id="modalContent"></div>
         </div>
     </div>
 
     <script>
-        const appointmentsData = [
-            { name: "Maria", date: "2024-10-10", tattoo: "Flor de Lótus", description: "Tatuagem delicada de flor de lótus nas costas." },
-            { name: "João", date: "2024-10-12", tattoo: "Fênix", description: "Rebirth tattoo com cores vibrantes." },
-            // Adicione mais dados conforme necessário
-        ];
-
-        const appointmentsTableBody = document.querySelector("#appointmentsTable tbody");
-        const rawDataElement = document.getElementById("rawData");
-        const modal = document.getElementById("detailsModal");
-        const modalContent = document.getElementById("modalContent");
-        const closeModal = document.querySelector(".close");
-        const searchInput = document.querySelector(".search-input");
-
-        function loadAppointments() {
-            appointmentsData.forEach((appointment, index) => {
-                const row = document.createElement("tr");
-                row.innerHTML = `
-                    <td>${appointment.name}</td>
-                    <td>${appointment.date}</td>
-                    <td>${appointment.tattoo}</td>
-                    <td>
-                        <button class="details-btn" onclick="showDetails(${index})">Detalhes</button>
-                        <button class="delete-btn" onclick="deleteAppointment(${index})">Excluir</button>
-                    </td>
-                `;
-                appointmentsTableBody.appendChild(row);
-            });
-            rawDataElement.textContent = JSON.stringify(appointmentsData, null, 2);
+        // Função para buscar agendamentos do banco de dados
+        async function fetchAppointments() {
+            try {
+                const response = await fetch('fetch_appointments.php');
+                if (!response.ok) {
+                    throw new Error('Falha ao buscar agendamentos');
+                }
+                return await response.json();
+            } catch (error) {
+                console.error('Erro ao buscar agendamentos:', error);
+                return [];
+            }
         }
 
-        function showDetails(index) {
-            const appointment = appointmentsData[index];
+        // Função para popular a tabela com os agendamentos
+        async function populateTable() {
+            const tableBody = document.querySelector("#appointmentsTable tbody");
+            const rawDataElement = document.getElementById("rawData");
+            const appointments = await fetchAppointments();
+
+            tableBody.innerHTML = '';
+            rawDataElement.textContent = '';
+
+            if (!Array.isArray(appointments) || appointments.length === 0) {
+                const row = tableBody.insertRow();
+                const cell = row.insertCell(0);
+                cell.colSpan = 4;
+                cell.textContent = "Nenhum agendamento recebido.";
+                rawDataElement.textContent = "Nenhum dado recebido.";
+                return;
+            }
+
+            appointments.forEach(appointment => {
+                const row = tableBody.insertRow();
+                row.insertCell(0).textContent = appointment.fullName;
+                row.insertCell(1).textContent = new Date(appointment.preferredDate).toLocaleDateString();
+                row.insertCell(2).textContent = appointment.tattooDescription;
+                
+                const actionsCell = row.insertCell(3);
+                const detailsButton = document.createElement("button");
+                detailsButton.innerHTML = '<i class="fas fa-eye"></i> Detalhes';
+                detailsButton.className = "details-btn";
+                detailsButton.onclick = () => showDetails(appointment);
+                actionsCell.appendChild(detailsButton);
+
+                const deleteButton = document.createElement("button");
+                deleteButton.innerHTML = '<i class="fas fa-trash"></i> Excluir';
+                deleteButton.className = "delete-btn"; // Corrigido para classe correta
+                deleteButton.onclick = () => deleteAppointment(appointment.id);
+                actionsCell.appendChild(deleteButton);
+
+                // Adiciona atributos data-label para responsividade
+                row.cells[0].setAttribute('data-label', 'Nome');
+                row.cells[1].setAttribute('data-label', 'Data do Agendamento');
+                row.cells[2].setAttribute('data-label', 'Tatuagem');
+                row.cells[3].setAttribute('data-label', 'Ações');
+            });
+
+            rawDataElement.textContent = JSON.stringify(appointments, null, 2);
+        }
+
+        // Função para deletar um agendamento
+        async function deleteAppointment(id) {
+            if (confirm("Tem certeza que deseja excluir este agendamento?")) {
+                try {
+                    const response = await fetch('deleteAppointment.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: new URLSearchParams({
+                            'id': id
+                        })
+                    });
+                    const result = await response.json();
+                    if (!result.success) {
+                        throw new Error(result.message || 'Falha ao excluir agendamento');
+                    }
+                    alert("Agendamento excluído com sucesso!");
+                    populateTable();
+                } catch (error) {
+                    console.error('Erro ao excluir agendamento:', error);
+                    alert("Erro ao excluir agendamento. Por favor, tente novamente.");
+                }
+            }
+        }
+
+        // Função para mostrar detalhes do agendamento em um modal
+        function showDetails(appointment) {
+            const modal = document.getElementById("detailsModal");
+            const modalContent = document.getElementById("modalContent");
             modalContent.innerHTML = `
-                <p><strong>Nome:</strong> ${appointment.name}</p>
-                <p><strong>Data:</strong> ${appointment.date}</p>
-                <p><strong>Tatuagem:</strong> ${appointment.tattoo}</p>
-                <p><strong>Descrição:</strong> ${appointment.description}</p>
+                <p><strong><i class="fas fa-user"></i> Nome:</strong> ${appointment.fullName}</p>
+                <p><strong><i class="fas fa-envelope"></i> E-mail:</strong> ${appointment.email}</p>
+                <p><strong><i class="fas fa-phone"></i> Telefone:</strong> ${appointment.phone}</p>
+                <p><strong><i class="fas fa-birthday-cake"></i> Data de Nascimento:</strong> ${new Date(appointment.birthDate).toLocaleDateString()}</p>
+                <p><strong><i class="fas fa-pen-fancy"></i> Descrição da Tatuagem:</strong> ${appointment.tattooDescription}</p>
+                <p><strong><i class="fas fa-ruler"></i> Tamanho:</strong> ${appointment.tattooSize} cm</p>
+                <p><strong><i class="fas fa-child"></i> Parte do Corpo:</strong> ${appointment.bodyPart}</p>
+                <p><strong><i class="far fa-calendar-check"></i> Data Preferencial:</strong> ${new Date(appointment.preferredDate).toLocaleDateString()}</p>
+                <p><strong><i class="fas fa-heartbeat"></i> Condições Médicas:</strong> ${appointment.medicalConditions || "Nenhuma"}</p>
+                <p><strong><i class="fas fa-allergies"></i> Alergias:</strong> ${appointment.allergies || "Nenhuma"}</p>
+                <p><strong><i class="fas fa-pills"></i> Medicamentos:</strong> ${appointment.medications || "Nenhum"}</p>
+                <p><strong><i class="fas fa-baby"></i> Grávida/Amamentando:</strong> ${appointment.pregnantNursing ? "Sim" : "Não"}</p>
+                <p><strong><i class="fas fa-hand-paper"></i> Condições de Pele:</strong> ${appointment.skinConditions || "Nenhuma"}</p>
+                <p><strong><i class="fas fa-thermometer-half"></i> Sensibilidade da Pele:</strong> ${appointment.skinSensitivity}</p>
+                <p><strong><i class="fas fa-sun"></i> Bronzeamento Recente:</strong> ${appointment.recentTan ? "Sim" : "Não"}</p>
             `;
             modal.style.display = "block";
         }
 
-        function deleteAppointment(index) {
-            if (confirm("Tem certeza que deseja excluir este agendamento?")) {
-                appointmentsData.splice(index, 1);
-                appointmentsTableBody.innerHTML = "";
-                loadAppointments();
-            }
-        }
-
-        closeModal.onclick = function() {
-            modal.style.display = "none";
-        }
-
-        window.onclick = function(event) {
-            if (event.target === modal) {
+        // Função para fechar o modal
+        function setupModal() {
+            const modal = document.getElementById("detailsModal");
+            const span = document.getElementsByClassName("close")[0];
+            span.onclick = function() {
                 modal.style.display = "none";
             }
+            window.onclick = function(event) {
+                if (event.target == modal) {
+                    modal.style.display = "none";
+                }
+            }
         }
 
-        searchInput.addEventListener("input", function() {
-            const filter = searchInput.value.toLowerCase();
-            const rows = appointmentsTableBody.querySelectorAll("tr");
+        // Inicialização ao carregar a página
+        window.onload = () => {
+            populateTable();
+            setupModal();
+            setInterval(populateTable, 60000); // Atualiza os dados a cada minuto
+        };
 
+        // Função de busca em tempo real
+        const searchInput = document.querySelector(".search-input");
+        searchInput.addEventListener("input", function() {
+            const searchTerm = this.value.toLowerCase();
+            const rows = document.querySelectorAll("#appointmentsTable tbody tr");
             rows.forEach(row => {
-                const cells = row.querySelectorAll("td");
-                const match = Array.from(cells).some(cell => cell.textContent.toLowerCase().includes(filter));
-                row.style.display = match ? "" : "none";
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchTerm) ? "" : "none";
             });
         });
-
-        loadAppointments();
     </script>
 </body>
 </html>
